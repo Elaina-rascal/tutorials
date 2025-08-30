@@ -1,6 +1,7 @@
 ## ROS介绍
 - 传感器与算法掉包工程
 - 话题分模块体系
+
 ### 新建功能包与编译
 ROS 工作空间
 ```txt
@@ -17,6 +18,7 @@ ros_ws/ #工作空间根目录 colcon build --symlink-install
 |-log/ #日志路径
 |-install/ #结构路径
 ```
+> 所有的ros2 功能包都需要`source`过后使用
 ### 两种功能包编译工具链与两种构建命令
 #### ament_cmake
 - c++节点
@@ -129,3 +131,90 @@ usb_cam_node:         //可乱变
 - 启动节点,可以生成多个实例
 - 给节点传递参数
 - launch嵌套
+### 在launch中找可执行文件
+- 下面的包和可执行文件需要先source过
+```python
+ld=LaunchDescription()
+camera_node=Node(
+        package='usb_cam',
+        executable='usb_cam_node_exe',
+        name='usb_cam_node',
+        output='screen',
+        emulate_tty=True,
+        parameters=[LaunchConfiguration('config_dir')]
+    )
+ld.add_action(camera_node)
+```
+> 上面的emulate_tty决定了print或者std::cout能不能直接显示到控制台上
+### 在launch中找其他文件
+
+- 用当前launch文件的相对路径找
+```python
+cur_path = os.path.split(os.path.realpath(__file__))[0] + '/'
+cur_config_path = cur_path + '../config'
+rviz_config_path = os.path.join(cur_config_path, 'display_point_cloud_ROS2.rviz')
+```
+- 用ros2查找功能包的api找
+```python
+my_package_prefix = get_package_share_directory('my_driver') #需要和功能包同名
+yaml_path=my_package_prefix+'/config/realsense.yaml' #深度相机的配置文件
+
+```
+> 需要在cmake中把对应的目录添加到安装路径上
+### 在launch中传参
+- 静态参只需要在节点传入
+```python
+    communicate_node=Node(
+        package='my_driver',
+        executable='com.py',
+        name='communicate',
+        output='screen',
+        emulate_tty=True,
+        parameters=[
+            {'serial_port': '/dev/serial_ch340', #指定节点中的动态参数
+             'serial_baudrate':230400,
+             }
+        ]
+    )
+```
+- 动态参要`先声明`再使用,和节点一样
+- 不声明`不会`报错,但是外部参数传不进去
+```python
+ld=LaunchDescription()
+ld.add_action(DeclareLaunchArgument('joy_topic', default_value='/joy')) #注意要先声明
+ld.add_action(DeclareLaunchArgument('cmd_vel_topic', default_value='/cmd_vel'))
+joy_teleop = Node(
+        package='my_driver',
+        executable='joy.py',
+        parameters=[{
+            'joy_topic': LaunchConfiguration('joy_topic'),
+            'cmd_vel_topic': LaunchConfiguration('cmd_vel_topic'),
+        }]
+    )
+ld.add_action(joy_teleop)
+```
+<!-- <a id = "custom-anchor">往这跳</a> -->
+- 对于bool动态参数并不能直接获得值来参与 if 运算
+- 静态参数与动态参数指从命令行或者launch启动launch的时候能不能更改参数值
+### launch嵌套launch
+- 需要先找到被调用launch
+- 传递参数和node有不同
+```python
+mid360_launch=IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(get_package_share_directory('my_driver'),'launch','mid360_dd.launch.py')
+        ),
+        launch_arguments={
+            'use_rviz': 'false',  #不启动rviz
+        }.items(),
+    )
+```
+> 上面的launch参数在最外面要加一个`.items()`,找launch方式是[前文](#在launch中找其他文件)
+
+## ROS Bag
+- 记录数据包与播放数据包
+- ros2 数据包一般是数据包.db3+metadata.yaml ros1一般是数据包.bag
+- 可以用`foxglove`直接对数据包可视化
+![alt text](image-4.png)
+- 在录制数据包时候有时会出现写入问题,没查明问题
+- 播放时候默认是单次播放1倍速率,在重复播放时候会遇到时间戳问题
