@@ -210,7 +210,9 @@ mid360_launch=IncludeLaunchDescription(
     )
 ```
 > 上面的launch参数在最外面要加一个`.items()`,找launch方式是[前文](#在launch中找其他文件)
-
+### 更改驱动launch
+- 复制原始的launch文件
+- 更改配置文件路径
 ## ROS Bag
 - 记录数据包与播放数据包
 - ros2 数据包一般是数据包.db3+metadata.yaml ros1一般是数据包.bag
